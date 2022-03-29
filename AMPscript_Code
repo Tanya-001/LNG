@@ -1,15 +1,15 @@
  %%[
   var @First_Name, @Last_Name, @Company_Name, @Fleet_Manager_Email_Address, @Personal_Email_Address, @Submitted_Answer_1, @Submitted_Answer_2, @Submitted_Answer_3, @Submitted_Answer_4, @Submitted_Answer_5, @Submitted_Answer_6, @Submitted_Answer_7, @Submitted_Answer_8, @Submitted_Answer_9, @Submitted_Answer_10,@submit_value,@formSubmit, @Correct_answer_value,@formblock,@thankyoublock,
 @ts, @ts_def,@ts_sub,@EmailAddr
-  
+
+/* Defining block values to manage thank-you block display in HTML */
   SET @formblock='block'
-  SET @thankyoublock='none'  
-  
+  SET @thankyoublock='none'    
   SET @formSubmit_value="False"  
 
+/* Store responses in variables */
   IF RequestParameter("formSubmit") == true THEN
-  SET @formSubmit_value=RequestParameter("formSubmit") 
-  
+  SET @formSubmit_value=RequestParameter("formSubmit")   
   SET @First_Name = RequestParameter("firstname")
   SET @Last_Name = RequestParameter("lastname")
   SET @Company_Name = RequestParameter("companyname")
@@ -29,8 +29,11 @@
     
   SET @formblock="none"
   SET @thankyoublock="block"
+  
+ /* Generate unique send ID everytime email is triggered */  
   set @Unique_Send_ID = GUID()  
   
+ /* Save responses in data extension */  
    InsertDE("Quiz_Responses",
    "First_Name",@First_Name,
    "Last_Name",@Last_Name,
@@ -50,48 +53,57 @@
    "Correct_Answers",@Correct_answer_value,
    "Submit_Date",Now(1),
    "Unique_Send_ID",@Unique_Send_ID)   
+   
+  /* Define subscriber key and email address for sending mandatory EMAIL-A */
+  SET @SubscriberKey = "testemail@mockpmail.com"
+  SET @EmailAddress = "testemail@mockmail.com"
   
-  SET @SubscriberKey = "testemail@yopmail.com"
-  SET @EmailAddress = "testemail@yopmail.com"
- 
+ /* Define trigger email external key */
   SET @TriggerSendExternalKey = "001"
 
-/* Manager Email Send */
+/* Manager Email Sends */
 
- /* Specify the external key of the TriggerSend */
+ /* Create trigger send object */
  SET @TriggerSend = CreateObject("TriggeredSend")
  SET @TriggerSendDefinition = CreateObject("TriggeredSendDefinition")
+ 
+ /* Set trigger email external key to trigger send definition */
  SetObjectProperty(@TriggerSendDefinition, "CustomerKey", @TriggerSendExternalKey)
  SetObjectProperty(@TriggerSend, "TriggeredSendDefinition", @TriggerSendDefinition)
 
- /* Specify the email address and the subscriber key */
+ /* Create subscriber object */
  SET @TriggerSendSubscriber = CreateObject("Subscriber")
+ 
+ /* Specify the email address and the subscriber key */
  SetObjectProperty(@TriggerSendSubscriber, "EmailAddress", @EmailAddress) 
  SetObjectProperty(@TriggerSendSubscriber, "SubscriberKey", @SubscriberKey) 
 
-
- /* Fill out the Attributes field in the TriggerSend data extension */
+ /* Create attribute object */
  SET @attr = CreateObject("Attribute")
+ 
+ /* Fill out the Attributes field in the TriggerSend data extension */
  SetObjectProperty(@attr, "Name", "Unique_Send_ID")
  SetObjectProperty(@attr,"Value", @Unique_Send_ID)
  AddObjectArrayItem(@TriggerSend, "Attributes", @attr)
  AddObjectArrayItem(@TriggerSend, "Subscribers", @TriggerSendSubscriber)   
 
+/* Complete trigger send */
  SET @TriggerSend_statusCode = InvokeCreate(@TriggerSend, @TriggerSend_statusMsg, @errorCode) 
 
+/* If trigger send fails */
  IF @TriggerSend_statusCode != "OK" THEN
   OUTPUTLINE(CONCAT("Status: ",@TriggerSend_statusMsg," / Code: ",@errorCode))
  ENDIF
  
-/* Customer Email Send Fleet ManagerEmail address*/
- 
-IF NOT EMPTY(@Fleet_Manager_Email_Address)  THEN
-
-
+/* Manage email send to input email addresses*/
+ /* Send Email-B */
+ IF NOT EMPTY(@Fleet_Manager_Email_Address)  THEN
  SET @EmailAddress2 = @Fleet_Manager_Email_Address
+ 
+ /* Define trigger email external key */
  SET @TriggerSendExternalKey2 = "002"
 
-/* Check if the Email Address is already existing subscriber  */
+/* Check if the Email Address is already existing subscriber */
 SET @Existing_subscribers = LookupOrderedRows("ent._Subscribers",1,"DateJoined Desc","EmailAddress",@Fleet_Manager_Email_Address,"Status","Active")
 Set @rowcount2=RowCount(@Existing_subscribers)
 
@@ -100,81 +112,96 @@ IF @rowCount2 > 0 then
   set @row = row(@Existing_subscribers,1) /* get row #1 */
   set @SubscriberKey2 = field(@row,"SubscriberKey")
 Else
+/* Generate new subscriber key */
  SET @SubscriberKey2 = GUID()
 EndIF
  
- /* Specify the external key of the TriggerSend */
+ /* Create trigger send object */
  SET @TriggerSend2 = CreateObject("TriggeredSend")
  SET @TriggerSendDefinition2 = CreateObject("TriggeredSendDefinition")
+ 
+ /* Set trigger email external key to trigger send definition */
  SetObjectProperty(@TriggerSendDefinition2, "CustomerKey", @TriggerSendExternalKey2)
  SetObjectProperty(@TriggerSend2, "TriggeredSendDefinition", @TriggerSendDefinition2)
 
- /* Specify the email address and the subscriber key */
+ /* Create subscriber object */
  SET @TriggerSendSubscriber2 = CreateObject("Subscriber")
+ 
+ /* Specify the email address and the subscriber key */
  SetObjectProperty(@TriggerSendSubscriber2, "EmailAddress", @EmailAddress2) 
  SetObjectProperty(@TriggerSendSubscriber2, "SubscriberKey", @SubscriberKey2) 
 
- /* Fill out the Attributes field in the TriggerSend data extension */
+ /* Create attribute object */
  SET @attr = CreateObject("Attribute")
+ 
+ /* Fill out the Attributes field in the TriggerSend data extension */
  SetObjectProperty(@attr, "Name", "Unique_Send_ID")
  SetObjectProperty(@attr,"Value", @Unique_Send_ID)
  AddObjectArrayItem(@TriggerSend2, "Attributes", @attr)
  AddObjectArrayItem(@TriggerSend2, "Subscribers", @TriggerSendSubscriber2)  
 
+/* Complete trigger send */
  SET @TriggerSend_statusCode = InvokeCreate(@TriggerSend2, @TriggerSend2_statusMsg, @errorCode) 
 
+/* If trigger send fails */
  IF @TriggerSend_statusCode != "OK" THEN
   OUTPUTLINE(CONCAT("Status_MEA: ",@TriggerSend2_statusMsg," / Code: ",@errorCode))
  ENDIF
  
 ENDIF 
 
- /* Customer Email Send Fleet Personal_Email_Address */
- 
-IF NOT EMPTY(@Personal_Email_Address)  THEN
-
- SET @SubscriberKey3 = GUID()
+/* Send EMAIL-C */ 
+ IF NOT EMPTY(@Personal_Email_Address)  THEN
  SET @EmailAddress3 = @Personal_Email_Address
  
+ /* Define trigger email external key */
  SET @TriggerSendExternalKey3 = "003"
 
+/* Check if the Email Address is already existing subscriber */
  SET @Existing_subscribers = LookupOrderedRows("ent._Subscribers",1,"DateJoined Desc","EmailAddress",@Personal_Email_Address,"Status","Active")
-Set @rowcount2=RowCount(@Existing_subscribers)
+ SET @rowcount2=RowCount(@Existing_subscribers)
 
 /* Set subscriber key for the email */
 IF @rowCount2 > 0 then
   set @row = row(@Existing_subscribers,1) /* get row #1 */
   set @SubscriberKey3 = field(@row,"SubscriberKey")
 Else
+/* Generate new subscriber key */
  SET @SubscriberKey3 = GUID()
 EndIF 
  
- /* Specify the external key of the TriggerSend */
+ /* Create trigger send object */
  SET @TriggerSend3 = CreateObject("TriggeredSend")
  SET @TriggerSendDefinition3 = CreateObject("TriggeredSendDefinition")
+ 
+ /* Set trigger email external key to trigger send definition */
  SetObjectProperty(@TriggerSendDefinition3, "CustomerKey", @TriggerSendExternalKey3)
  SetObjectProperty(@TriggerSend3, "TriggeredSendDefinition", @TriggerSendDefinition3)
 
- /* Specify the email address and the subscriber key */
+ /* Create subscriber object */
  SET @TriggerSendSubscriber3 = CreateObject("Subscriber")
+ 
+ /* Specify the email address and the subscriber key */
  SetObjectProperty(@TriggerSendSubscriber3, "EmailAddress", @EmailAddress3) 
  SetObjectProperty(@TriggerSendSubscriber3, "SubscriberKey", @SubscriberKey3) 
 
- /* Fill out the Attributes field in the TriggerSend data extension */
+ /* Create attribute object */
  SET @attr = CreateObject("Attribute")
+ 
+ /* Fill out the Attributes field in the TriggerSend data extension */
  SetObjectProperty(@attr, "Name", "Unique_Send_ID")
  SetObjectProperty(@attr,"Value", @Unique_Send_ID)
  AddObjectArrayItem(@TriggerSend3, "Attributes", @attr)
  AddObjectArrayItem(@TriggerSend3, "Subscribers", @TriggerSendSubscriber3)  
 
+/* Complete trigger send */
  SET @TriggerSend_statusCode = InvokeCreate(@TriggerSend3, @TriggerSend3_statusMsg, @errorCode) 
 
+/*If trigger send fails */
  IF @TriggerSend_statusCode != "OK" THEN
   OUTPUTLINE(CONCAT("Status_PEA: ",@TriggerSend3_statusMsg," / Code: ",@errorCode))
- ENDIF
- 
+ ENDIF 
 ENDIF 
-  ENDIF
-
+ENDIF
   ]%%
   
